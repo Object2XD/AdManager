@@ -1,4 +1,7 @@
-﻿using GoogleMobileAds.Api;
+﻿#define USE_ADMOB
+
+#if USE_ADMOB
+using GoogleMobileAds.Api;
 using System;
 
 namespace UnityEngine.Ad {
@@ -381,3 +384,4 @@ namespace UnityEngine.Ad {
     }
     #endregion
 }
+#endif
