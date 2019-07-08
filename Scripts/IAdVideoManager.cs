@@ -1,5 +1,9 @@
 ﻿namespace UnityEngine.Ad {
     public interface IAdVideoManager : IAdManager {
+        bool IsAdVideoLoading {
+            get;
+        }
+
         bool IsAdVideoLoaded {
             get;
         }

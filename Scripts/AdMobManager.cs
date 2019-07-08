@@ -3,18 +3,25 @@
 #if USE_ADMOB
 using GoogleMobileAds.Api;
 using System;
+using System.Collections;
 
 namespace UnityEngine.Ad {
     public partial class AdMobManager : Singleton<AdMobManager>, IAdManager, IAdVideoManager, IAdBannerManager {
+        private const float TIMER = 60;
 
         private RewardBasedVideoAd rewardBasedVideo;
         private AdVideoRequestParam adVideoRequestParam;
-
+        private SimpleMonoBehaviour timer = null;
 
         /// <summary>
         /// 初期化済みか
         /// </summary>
         public bool IsInitialized {
+            get;
+            private set;
+        }
+
+        public bool IsAdVideoLoading {
             get;
             private set;
         }
@@ -90,6 +97,11 @@ namespace UnityEngine.Ad {
         #region AdMob イベント
         public void HandleRewardBasedVideoLoaded(object sender, EventArgs args) {
             Debug.Log("HandleRewardBasedVideoLoaded event received");
+            // タイマー停止
+            if(timer != null) timer.StopAllCoroutines();
+            // 読み込み中以外
+            if (!IsAdVideoLoading) return;
+            IsAdVideoLoading = false;
             if (adVideoRequestParam == null) return;
             if (adVideoRequestParam.OnAdVideoLoaded == null) return;
             adVideoRequestParam.OnAdVideoLoaded.Invoke(this);
@@ -97,6 +109,9 @@ namespace UnityEngine.Ad {
 
         public void HandleRewardBasedVideoFailedToLoad(object sender, AdFailedToLoadEventArgs args) {
             Debug.LogError("HandleRewardBasedVideoFailedToLoad event received with message: " + args.Message);
+            if (timer != null) timer.StopAllCoroutines();
+            if (!IsAdVideoLoading) return;
+            IsAdVideoLoading = false;
             if (adVideoRequestParam == null) return;
             if (adVideoRequestParam.OnAdVideoFailedToLoad == null) return;
             adVideoRequestParam.OnAdVideoFailedToLoad.Invoke(this);
@@ -145,16 +160,21 @@ namespace UnityEngine.Ad {
                 return;
             }
 
+            // 設定がNullの場合
+            if (adVideoRequestParam == null) {
+                Debug.LogError("config is null");
+                return;
+            }
+
+            if (IsAdVideoLoading) {
+                Debug.LogError("ad video loading now");
+                return;
+            }
+
             if (IsAdVideoLoaded) {
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoLoaded == null) return;
                 adVideoRequestParam.OnAdVideoLoaded(this);
-                return;
-            }
-
-            // 設定がNullの場合
-            if (adVideoRequestParam == null) {
-                Debug.LogError("config is null");
                 return;
             }
 
@@ -176,6 +196,11 @@ namespace UnityEngine.Ad {
                 return;
             }
 
+            if (IsAdVideoLoading) {
+                Debug.LogError("ad video loading now");
+                return;
+            }
+
             if (IsAdVideoLoaded) {
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoLoaded == null) return;
@@ -188,6 +213,12 @@ namespace UnityEngine.Ad {
                 AdRequest request = new AdRequest.Builder().Build();
                 // Load the rewarded video ad with the request.
                 rewardBasedVideo.LoadAd(request, adVideoRequestParam.AdMobAdUnitId);
+                IsAdVideoLoading = true;
+                if (timer == null) {
+                    Debug.Log("New Gameobject");
+                    timer = new GameObject(typeof(SimpleMonoBehaviour).FullName).AddComponent<SimpleMonoBehaviour>();
+                }
+                timer.StartCoroutine(TimeOut(TIMER));
             }
 
             // 初期化失敗時
@@ -195,6 +226,14 @@ namespace UnityEngine.Ad {
                 Debug.LogError(ex);
                 return;
             }
+        }
+
+        private IEnumerator TimeOut(float timer) {
+            yield return new WaitForSeconds(timer);
+            if (!IsAdVideoLoading) yield break;
+            IsAdVideoLoading = false;
+            if (adVideoRequestParam.OnAdVideoTimeoutToLoad == null) yield break;
+            adVideoRequestParam.OnAdVideoTimeoutToLoad(this);
         }
 
         /// <summary>

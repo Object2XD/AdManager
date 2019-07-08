@@ -5,6 +5,7 @@ namespace UnityEngine.Ad {
     public class AdVideoRequestParam {
         public Action<IAdVideoManager> OnAdVideoLoaded;
         public Action<IAdVideoManager> OnAdVideoFailedToLoad;
+        public Action<IAdVideoManager> OnAdVideoTimeoutToLoad;
         public Action<IAdVideoManager> OnAdVideoOpening;
         public Action<IAdVideoManager> OnAdVideoStarted;
         public Action<IAdVideoManager> OnAdVideoRewarded;
