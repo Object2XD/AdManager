@@ -10,6 +10,10 @@ Unityでの広告SDKの実装容易性と差し替え容易性を向上するの
 ・Tapjoy<br>
 
 使用方法<br>
+STEP1<br>
+Assetsフォルダ以下に配置
+
+STEP2<br>
 各種SDKに対応したシンボルを追加してください。<br>
 ・#define USE_ADMOB<br>
 
