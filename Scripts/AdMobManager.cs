@@ -4,6 +4,8 @@
 using GoogleMobileAds.Api;
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Timers;
 
 namespace UnityEngine.Ad {
     public partial class AdMobManager : Singleton<AdMobManager>, IAdManager, IAdVideoManager, IAdBannerManager {
@@ -11,8 +13,22 @@ namespace UnityEngine.Ad {
 
         private RewardBasedVideoAd rewardBasedVideo;
         private AdVideoRequestParam adVideoRequestParam;
-        private SimpleMonoBehaviour timer = null;
+        private Timer timer;
 
+        private ThreadQueue<Action> threadQueue = new ThreadQueue<Action>();
+        private SimpleMonoBehaviour threadExcuter;
+        private IEnumerator ThreadExcuter() {
+            do {
+                threadQueue.Commit();
+                var queue = threadQueue.Dequeue();
+                foreach (var q in queue) {
+                    q.Invoke();
+                }
+                yield return null;
+            } while (true);
+        }
+
+ 
         /// <summary>
         /// 初期化済みか
         /// </summary>
@@ -82,6 +98,15 @@ namespace UnityEngine.Ad {
                 // Called when the ad click caused the user to leave the application.
                 rewardBasedVideo.OnAdLeavingApplication += HandleRewardBasedVideoLeftApplication;
                 #endregion
+
+                timer = new Timer(30000);
+                // ループしない
+                timer.AutoReset = false;
+
+                timer.Elapsed += HandleRewardBasedVideoTimeoutToLoad;
+
+                threadExcuter = new GameObject(typeof(SimpleMonoBehaviour).FullName).AddComponent<SimpleMonoBehaviour>();
+                threadExcuter.StartCoroutine(ThreadExcuter());
             }
 
             // 初期化失敗時
@@ -96,61 +121,87 @@ namespace UnityEngine.Ad {
 
         #region AdMob イベント
         public void HandleRewardBasedVideoLoaded(object sender, EventArgs args) {
-            Debug.Log("HandleRewardBasedVideoLoaded event received");
-            // タイマー停止
-            if(timer != null) timer.StopAllCoroutines();
-            // 読み込み中以外
-            if (!IsAdVideoLoading) return;
-            IsAdVideoLoading = false;
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoLoaded == null) return;
-            adVideoRequestParam.OnAdVideoLoaded.Invoke(this);
+            threadQueue.Enqueue(() => {
+                Debug.Log("HandleRewardBasedVideoLoaded event received");
+                // タイマー停止
+                timer.Stop();
+                // 読み込み中以外
+                if (!IsAdVideoLoading) return;
+                IsAdVideoLoading = false;
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoLoaded == null) return;
+                adVideoRequestParam.OnAdVideoLoaded.Invoke(this);
+            });
         }
 
         public void HandleRewardBasedVideoFailedToLoad(object sender, AdFailedToLoadEventArgs args) {
-            Debug.LogError("HandleRewardBasedVideoFailedToLoad event received with message: " + args.Message);
-            if (timer != null) timer.StopAllCoroutines();
-            if (!IsAdVideoLoading) return;
-            IsAdVideoLoading = false;
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoFailedToLoad == null) return;
-            adVideoRequestParam.OnAdVideoFailedToLoad.Invoke(this);
+            threadQueue.Enqueue(() => {
+                Debug.LogError("HandleRewardBasedVideoFailedToLoad event received with message: " + args.Message);
+                // タイマー停止
+                timer.Stop();
+                // 読み込み中以外
+                if (!IsAdVideoLoading) return;
+                IsAdVideoLoading = false;
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoFailedToLoad == null) return;
+                adVideoRequestParam.OnAdVideoFailedToLoad.Invoke(this);
+            });
+        }
+
+        public void HandleRewardBasedVideoTimeoutToLoad(object sender, ElapsedEventArgs args) {
+            threadQueue.Enqueue(() => {
+                Debug.LogError("HandleRewardBasedVideoTimeoutToLoad event received");
+                if (!IsAdVideoLoading) return;
+                IsAdVideoLoading = false;
+                if (adVideoRequestParam.OnAdVideoTimeoutToLoad == null) return;
+                adVideoRequestParam.OnAdVideoTimeoutToLoad(this);
+            });
         }
 
         public void HandleRewardBasedVideoOpened(object sender, EventArgs args) {
-            Debug.Log("HandleRewardBasedVideoOpened event received");
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoOpening == null) return;
-            adVideoRequestParam.OnAdVideoOpening.Invoke(this);
+            threadQueue.Enqueue(() => {
+                Debug.Log("HandleRewardBasedVideoOpened event received");
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoOpening == null) return;
+                adVideoRequestParam.OnAdVideoOpening.Invoke(this);
+            });
         }
 
         public void HandleRewardBasedVideoStarted(object sender, EventArgs args) {
-            Debug.Log("HandleRewardBasedVideoStarted event received");
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoStarted == null) return;
-            adVideoRequestParam.OnAdVideoStarted.Invoke(this);
+            threadQueue.Enqueue(() => {
+                Debug.Log("HandleRewardBasedVideoStarted event received");
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoStarted == null) return;
+                adVideoRequestParam.OnAdVideoStarted.Invoke(this);
+            });
         }
 
         public void HandleRewardBasedVideoClosed(object sender, EventArgs args) {
-            Debug.Log("HandleRewardBasedVideoClosed event received");
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoClosed == null) return;
-            adVideoRequestParam.OnAdVideoClosed.Invoke(this);
+            threadQueue.Enqueue(() => {
+                Debug.Log("HandleRewardBasedVideoClosed event received");
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoClosed == null) return;
+                adVideoRequestParam.OnAdVideoClosed.Invoke(this);
+            });
         }
 
         public void HandleRewardBasedVideoRewarded(object sender, Reward args) {
-            Debug.Log("HandleRewardBasedVideoRewarded event received for " + args.Type + " " + args.Amount);
-            IsAdVideoRewarded = true;
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoRewarded == null) return;
-            adVideoRequestParam.OnAdVideoRewarded.Invoke(this);
+                threadQueue.Enqueue(() => {
+                    Debug.Log("HandleRewardBasedVideoRewarded event received for " + args.Type + " " + args.Amount);
+                IsAdVideoRewarded = true;
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoRewarded == null) return;
+                adVideoRequestParam.OnAdVideoRewarded.Invoke(this);
+            });
         }
 
         public void HandleRewardBasedVideoLeftApplication(object sender, EventArgs args) {
-            Debug.Log("HandleRewardBasedVideoLeftApplication event received");
-            if (adVideoRequestParam == null) return;
-            if (adVideoRequestParam.OnAdVideoLeavingApplication == null) return;
-            adVideoRequestParam.OnAdVideoLeavingApplication.Invoke(this);
+            threadQueue.Enqueue(() => {
+                Debug.Log("HandleRewardBasedVideoLeftApplication event received");
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoLeavingApplication == null) return;
+                adVideoRequestParam.OnAdVideoLeavingApplication.Invoke(this);
+            });
         }
         #endregion
 
@@ -214,11 +265,7 @@ namespace UnityEngine.Ad {
                 // Load the rewarded video ad with the request.
                 rewardBasedVideo.LoadAd(request, adVideoRequestParam.AdMobAdUnitId);
                 IsAdVideoLoading = true;
-                if (timer == null) {
-                    Debug.Log("New Gameobject");
-                    timer = new GameObject(typeof(SimpleMonoBehaviour).FullName).AddComponent<SimpleMonoBehaviour>();
-                }
-                timer.StartCoroutine(TimeOut(TIMER));
+                timer.Start();
             }
 
             // 初期化失敗時
@@ -226,14 +273,6 @@ namespace UnityEngine.Ad {
                 Debug.LogError(ex);
                 return;
             }
-        }
-
-        private IEnumerator TimeOut(float timer) {
-            yield return new WaitForSeconds(timer);
-            if (!IsAdVideoLoading) yield break;
-            IsAdVideoLoading = false;
-            if (adVideoRequestParam.OnAdVideoTimeoutToLoad == null) yield break;
-            adVideoRequestParam.OnAdVideoTimeoutToLoad(this);
         }
 
         /// <summary>
