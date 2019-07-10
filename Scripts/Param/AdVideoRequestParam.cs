@@ -1,4 +1,5 @@
-﻿#define USE_ADMOB
+﻿//#define USE_ADMOB
+
 using System;
 
 namespace UnityEngine.Ad {

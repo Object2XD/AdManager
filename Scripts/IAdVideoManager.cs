@@ -11,10 +11,15 @@
         bool IsAdVideoRewarded {
             get;
         }
+
+        bool IsAdVideoLoadTimeout {
+            get;
+        }
+
         /// <summary>
         /// 
         /// </summary>
-        void OnAdVideoLoad(AdVideoRequestParam adVideoRequestParam);
+        void OnAdVideoLoad(AdVideoRequestParam adVideoRequestParam, float timeout = 30);
 
         void OnAdVideoLoadRetry();
 
