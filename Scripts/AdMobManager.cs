@@ -256,12 +256,12 @@ namespace UnityEngine.Ad {
         public void HandleRewardBasedVideoLoaded(object sender, EventArgs args) {
             threadQueue.Enqueue(() => {
                 Debug.Log("HandleRewardBasedVideoLoaded event received");
-                if (IsAdVideoLoadTimeout) return;
-                // タイマー停止
-                rewardedVideLoadtimer.Stop();
                 // 読み込み中以外
                 if (!IsAdVideoLoading) return;
                 IsAdVideoLoading = false;
+                // タイマー停止
+                rewardedVideLoadtimer.Stop();
+                if (IsAdVideoLoadTimeout) return;
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoLoaded == null) return;
                 adVideoRequestParam.OnAdVideoLoaded.Invoke(this);
@@ -271,12 +271,12 @@ namespace UnityEngine.Ad {
         public void HandleRewardBasedVideoFailedToLoad(object sender, AdFailedToLoadEventArgs args) {
             threadQueue.Enqueue(() => {
                 Debug.LogError("HandleRewardBasedVideoFailedToLoad event received with message: " + args.Message);
-                if (IsAdVideoLoadTimeout) return;
-                // タイマー停止
-                rewardedVideLoadtimer.Stop();
                 // 読み込み中以外
                 if (!IsAdVideoLoading) return;
                 IsAdVideoLoading = false;
+                // タイマー停止
+                rewardedVideLoadtimer.Stop();
+                if (IsAdVideoLoadTimeout) return;
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoFailedToLoad == null) return;
                 adVideoRequestParam.OnAdVideoFailedToLoad.Invoke(this);
