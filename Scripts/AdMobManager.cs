@@ -67,6 +67,7 @@ namespace UnityEngine.Ad {
 
                 threadExcuter = new GameObject(typeof(SimpleMonoBehaviour).FullName).AddComponent<SimpleMonoBehaviour>();
                 threadExcuter.StartCoroutine(ThreadExcuter());
+                UnityEngine.Object.DontDestroyOnLoad(threadExcuter);
             }
 
             // 初期化失敗時
@@ -198,6 +199,8 @@ namespace UnityEngine.Ad {
                         return;
                     }
                     else {
+                        rewardedVideLoadtimer.Interval = Math.Round(timeout * 1000);
+                        OnAdVideoLoadRetry();
                         return;
                     }
                 }
