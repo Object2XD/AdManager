@@ -1,4 +1,4 @@
-﻿//#define USE_ADMOB
+﻿#define USE_ADMOB
 
 #if USE_ADMOB
 using GoogleMobileAds.Api;
@@ -317,10 +317,20 @@ namespace UnityEngine.Ad {
         public void HandleRewardBasedVideoClosed(object sender, EventArgs args) {
             threadQueue.Enqueue(() => {
                 Debug.Log("HandleRewardBasedVideoClosed event received");
-                if (adVideoRequestParam == null) return;
-                if (adVideoRequestParam.OnAdVideoClosed == null) return;
-                adVideoRequestParam.OnAdVideoClosed.Invoke(this);
+                threadExcuter.StartCoroutine(DelayClose(
+                    () =>
+                    {
+                        if (adVideoRequestParam == null) return;
+                        if (adVideoRequestParam.OnAdVideoClosed == null) return;
+                        adVideoRequestParam.OnAdVideoClosed.Invoke(this);
+                    }));
             });
+        }
+
+        public IEnumerator DelayClose(Action callback)
+        {
+            yield return new WaitForSeconds(0.2f);
+            callback.Invoke();
         }
 
         public void HandleRewardBasedVideoRewarded(object sender, Reward args) {
