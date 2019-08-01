@@ -17,7 +17,12 @@ namespace UnityEngine.Ad {
                 threadQueue.Commit();
                 var queue = threadQueue.Dequeue();
                 foreach (var q in queue) {
-                    q.Invoke();
+                    try {
+                        q.Invoke();
+                    }
+                    catch (Exception ex) {
+                        Debug.LogError(ex);
+                    }
                 }
                 yield return null;
             } while (true);
