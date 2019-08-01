@@ -110,6 +110,9 @@ namespace UnityEngine.Ad {
             // 初期化失敗時
             catch (Exception ex) {
                 Debug.LogError(ex);
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoFailedToShow == null) return;
+                adVideoRequestParam.OnAdVideoFailedToShow(this);
                 return;
             }
         }
