@@ -38,7 +38,10 @@ public class AdManagerSample : MonoBehaviour {
                         Debug.LogError("Failed");
                     },
                     OnAdVideoTimeoutToLoad = am => {
-                        Debug.LogError("Timeout");
+                        Debug.LogError("LoadTimeout");
+                    },
+                    OnAdVideoTimeoutToOpen = am => {
+                        Debug.LogError("OpenTimeout");
                     },
                     OnAdVideoClosed = am => {
                         Debug.Log("Close");

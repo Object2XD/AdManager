@@ -9,6 +9,7 @@ namespace UnityEngine.Ad {
         public Action<IAdVideoManager> OnAdVideoTimeoutToLoad;
         public Action<IAdVideoManager> OnAdVideoFailedToShow;
         public Action<IAdVideoManager> OnAdVideoOpening;
+        public Action<IAdVideoManager> OnAdVideoTimeoutToOpen;
         public Action<IAdVideoManager> OnAdVideoStarted;
         public Action<IAdVideoManager> OnAdVideoRewarded;
         public Action<IAdVideoManager> OnAdVideoClosed;

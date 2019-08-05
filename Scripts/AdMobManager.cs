@@ -1,31 +1,34 @@
-﻿#define USE_ADMOB
-
-#if USE_ADMOB
+﻿#if USE_ADMOB
 using GoogleMobileAds.Api;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Timers;
+using UnityEngine.Extension;
 
 namespace UnityEngine.Ad {
-    public partial class AdMobManager : Singleton<AdMobManager>, IAdManager, IAdVideoManager, IAdBannerManager {
+    public partial class AdMobManager : SingletonMonoBehaviour<AdMobManager>, SingletonMonoBehaviour.IAutoCreate, SingletonMonoBehaviour.IAutoDontDestroyOnLoad, IAdVideoManager, IAdBannerManager {
         #region MainThreadQueue
         private ThreadQueue<Action> threadQueue = new ThreadQueue<Action>();
-        private SimpleMonoBehaviour threadExcuter;
-        private IEnumerator ThreadExcuter() {
-            do {
-                threadQueue.Commit();
-                var queue = threadQueue.Dequeue();
-                foreach (var q in queue) {
-                    try {
-                        q.Invoke();
-                    }
-                    catch (Exception ex) {
-                        Debug.LogError(ex);
-                    }
+        
+        /// <summary>
+        /// メインスレッドでの処理
+        /// </summary>
+        private void Update()
+        {
+            threadQueue.Commit();
+            var queue = threadQueue.Dequeue();
+            foreach (var q in queue)
+            {
+                try
+                {
+                    q.Invoke();
                 }
-                yield return null;
-            } while (true);
+                catch (Exception ex)
+                {
+                    Debug.LogError(ex);
+                }
+            }
         }
         #endregion
 
@@ -69,10 +72,6 @@ namespace UnityEngine.Ad {
 
                 // 動画初期化
                 InitializeRewardedVideo();
-
-                threadExcuter = new GameObject(typeof(SimpleMonoBehaviour).FullName).AddComponent<SimpleMonoBehaviour>();
-                threadExcuter.StartCoroutine(ThreadExcuter());
-                UnityEngine.Object.DontDestroyOnLoad(threadExcuter);
             }
 
             // 初期化失敗時
@@ -83,38 +82,6 @@ namespace UnityEngine.Ad {
 
             // 初期化が完了した場合
             IsInitialized = true;
-        }
-
-        
-
-        
-
-        /// <summary>
-        /// 動画再生
-        /// </summary>
-        public void OnAdVideoShow() {
-            if (!IsInitialized) {
-                Debug.LogError("dont initialized");
-                return;
-            }
-            if (!IsAdVideoLoaded) {
-                Debug.LogError("dont loaded");
-                return;
-            }
-
-            try {
-                // 動画を見始める前にリワードを初期化
-                IsAdVideoRewarded = false;
-                rewardBasedVideo.Show();
-            }
-            // 初期化失敗時
-            catch (Exception ex) {
-                Debug.LogError(ex);
-                if (adVideoRequestParam == null) return;
-                if (adVideoRequestParam.OnAdVideoFailedToShow == null) return;
-                adVideoRequestParam.OnAdVideoFailedToShow(this);
-                return;
-            }
         }
     }
 
@@ -130,6 +97,12 @@ namespace UnityEngine.Ad {
             get { return rewardBasedVideo.IsLoaded(); }
         }
 
+        public bool IsAdVideoOpened
+        {
+            get;
+            private set;
+        }
+
         public bool IsAdVideoRewarded {
             get;
             private set;
@@ -140,9 +113,18 @@ namespace UnityEngine.Ad {
             private set;
         }
 
+        public bool IsAdVideoOpenTimeout
+        {
+            get;
+            private set;
+        }
+
         private RewardBasedVideoAd rewardBasedVideo;
         private AdVideoRequestParam adVideoRequestParam;
-        private Timer rewardedVideLoadtimer;
+        private float rewardedVideLoadTimeout = 15;
+        private Coroutine rewardedVideLoadTimer;
+        private float rewardedVideOpenTimeout = 15;
+        private Coroutine rewardedVideOpenTimer;
 
         private void InitializeRewardedVideo() {
             // Get singleton reward based video ad reference.
@@ -165,11 +147,7 @@ namespace UnityEngine.Ad {
             rewardBasedVideo.OnAdLeavingApplication += HandleRewardBasedVideoLeftApplication;
             #endregion
 
-            rewardedVideLoadtimer = new Timer(30000);
-            // ループしない
-            rewardedVideLoadtimer.AutoReset = false;
 
-            rewardedVideLoadtimer.Elapsed += HandleRewardBasedVideoTimeoutToLoad;
         }
 
         public void OnAdVideoLoad(AdVideoRequestParam adVideoRequestParam, float timeout = 30) {
@@ -190,8 +168,8 @@ namespace UnityEngine.Ad {
                     if (IsAdVideoLoadTimeout) {
                         Debug.Log("timer restart");
                         IsAdVideoLoadTimeout = false;
-                        rewardedVideLoadtimer.Interval = Math.Round(timeout * 1000);
-                        rewardedVideLoadtimer.Start();
+                        rewardedVideLoadTimeout = timeout;
+                        rewardedVideLoadTimer = StartCoroutine(WaitForSeconds(rewardedVideLoadTimeout, HandleRewardBasedVideoTimeoutToLoad));
                         return;
                     }
                     else {
@@ -207,14 +185,14 @@ namespace UnityEngine.Ad {
                         return;
                     }
                     else {
-                        rewardedVideLoadtimer.Interval = Math.Round(timeout * 1000);
+                        rewardedVideLoadTimeout = timeout;
                         OnAdVideoLoadRetry();
                         return;
                     }
                 }
             }
             else {
-                rewardedVideLoadtimer.Interval = Math.Round(timeout * 1000);
+                rewardedVideLoadTimeout = timeout;
                 this.adVideoRequestParam = adVideoRequestParam;
                 OnAdVideoLoadRetry();
             }
@@ -253,7 +231,7 @@ namespace UnityEngine.Ad {
                 rewardBasedVideo.LoadAd(request, adVideoRequestParam.AdMobAdUnitId);
                 IsAdVideoLoading = true;
                 IsAdVideoLoadTimeout = false;
-                rewardedVideLoadtimer.Start();
+                rewardedVideLoadTimer = StartCoroutine(WaitForSeconds(rewardedVideLoadTimeout, HandleRewardBasedVideoTimeoutToLoad));
             }
 
             // 初期化失敗時
@@ -261,6 +239,52 @@ namespace UnityEngine.Ad {
                 Debug.LogError(ex);
                 return;
             }
+        }
+
+
+
+        /// <summary>
+        /// 動画再生
+        /// </summary>
+        public void OnAdVideoShow()
+        {
+            if (!IsInitialized)
+            {
+                Debug.LogError("dont initialized");
+                return;
+            }
+            if (!IsAdVideoLoaded)
+            {
+                Debug.LogError("dont loaded");
+                return;
+            }
+
+            try
+            {
+                // 動画を見始める前にリワードを初期化
+                IsAdVideoRewarded = false;
+                IsAdVideoOpened = false;
+                IsAdVideoOpenTimeout = false;
+
+                rewardedVideOpenTimer = StartCoroutine(WaitForSeconds(rewardedVideOpenTimeout, HandleRewardBasedVideoTimeoutToOpen));
+
+                rewardBasedVideo.Show();
+            }
+            // 初期化失敗時
+            catch (Exception ex)
+            {
+                Debug.LogError(ex);
+                if (adVideoRequestParam == null) return;
+                if (adVideoRequestParam.OnAdVideoFailedToShow == null) return;
+                adVideoRequestParam.OnAdVideoFailedToShow(this);
+                return;
+            }
+        }
+
+        private IEnumerator WaitForSeconds(float time, Action callback)
+        {
+            yield return new WaitForSeconds(time);
+            callback.Invoke();
         }
 
         #region AdMob Callback
@@ -271,7 +295,11 @@ namespace UnityEngine.Ad {
                 if (!IsAdVideoLoading) return;
                 IsAdVideoLoading = false;
                 // タイマー停止
-                rewardedVideLoadtimer.Stop();
+                if (rewardedVideLoadTimer != null)
+                {
+                    StopCoroutine(rewardedVideLoadTimer);
+                    rewardedVideLoadTimer = null;
+                }
                 if (IsAdVideoLoadTimeout) return;
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoLoaded == null) return;
@@ -286,7 +314,11 @@ namespace UnityEngine.Ad {
                 if (!IsAdVideoLoading) return;
                 IsAdVideoLoading = false;
                 // タイマー停止
-                rewardedVideLoadtimer.Stop();
+                if (rewardedVideLoadTimer != null)
+                {
+                    StopCoroutine(rewardedVideLoadTimer);
+                    rewardedVideLoadTimer = null;
+                }
                 if (IsAdVideoLoadTimeout) return;
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoFailedToLoad == null) return;
@@ -294,19 +326,38 @@ namespace UnityEngine.Ad {
             });
         }
 
-        public void HandleRewardBasedVideoTimeoutToLoad(object sender, ElapsedEventArgs args) {
-            threadQueue.Enqueue(() => {
-                Debug.LogError("HandleRewardBasedVideoTimeoutToLoad event received");
-                if (!IsAdVideoLoading) return;
-                IsAdVideoLoadTimeout = true;
-                if (adVideoRequestParam.OnAdVideoTimeoutToLoad == null) return;
-                adVideoRequestParam.OnAdVideoTimeoutToLoad(this);
+        public void HandleRewardBasedVideoTimeoutToLoad()
+        {
+            Debug.LogError("HandleRewardBasedVideoTimeoutToLoad event received");
+            if (!IsAdVideoLoading) return;
+            IsAdVideoLoadTimeout = true;
+            if (adVideoRequestParam.OnAdVideoTimeoutToLoad == null) return;
+            adVideoRequestParam.OnAdVideoTimeoutToLoad(this);
+        }
+
+        public void HandleRewardBasedVideoTimeoutToOpen()
+        {
+
+            threadQueue.Enqueue(() =>
+            {
+                Debug.LogError("HandleRewardBasedVideoTimeoutToShow event received");
+                if (IsAdVideoOpened) return;
+                IsAdVideoOpenTimeout = true;
+                if (adVideoRequestParam.OnAdVideoTimeoutToOpen == null) return;
+                adVideoRequestParam.OnAdVideoTimeoutToOpen(this);
             });
         }
 
         public void HandleRewardBasedVideoOpened(object sender, EventArgs args) {
             threadQueue.Enqueue(() => {
                 Debug.Log("HandleRewardBasedVideoOpened event received");
+                IsAdVideoOpened = true;
+                // タイマー停止
+                if (rewardedVideOpenTimer != null)
+                {
+                    StopCoroutine(rewardedVideOpenTimer);
+                    rewardedVideOpenTimer = null;
+                }
                 if (adVideoRequestParam == null) return;
                 if (adVideoRequestParam.OnAdVideoOpening == null) return;
                 adVideoRequestParam.OnAdVideoOpening.Invoke(this);
@@ -325,7 +376,9 @@ namespace UnityEngine.Ad {
         public void HandleRewardBasedVideoClosed(object sender, EventArgs args) {
             threadQueue.Enqueue(() => {
                 Debug.Log("HandleRewardBasedVideoClosed event received");
-                threadExcuter.StartCoroutine(DelayClose(
+                StartCoroutine(
+                    WaitForSeconds(
+                    0.2f,
                     () =>
                     {
                         if (adVideoRequestParam == null) return;
@@ -333,12 +386,6 @@ namespace UnityEngine.Ad {
                         adVideoRequestParam.OnAdVideoClosed.Invoke(this);
                     }));
             });
-        }
-
-        public IEnumerator DelayClose(Action callback)
-        {
-            yield return new WaitForSeconds(0.2f);
-            callback.Invoke();
         }
 
         public void HandleRewardBasedVideoRewarded(object sender, Reward args) {
