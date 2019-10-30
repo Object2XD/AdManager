@@ -1,4 +1,3 @@
-﻿#define USE_ADMOB
 namespace UnityEngine.Ad {
     public class AdConfigParam {
 #if USE_ADMOB
