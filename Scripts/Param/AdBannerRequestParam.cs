@@ -1,4 +1,3 @@
-﻿#define USE_ADMOB
 #if USE_ADMOB
 using GoogleMobileAds.Api;
 #endif
